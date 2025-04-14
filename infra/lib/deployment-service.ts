@@ -1,6 +1,7 @@
 import {
   aws_cloudfront,
   aws_cloudfront_origins,
+  aws_iam,
   aws_s3,
   aws_s3_deployment,
   CfnOutput,
@@ -43,10 +44,29 @@ export class DeploymentService extends Construct {
       }
     );
 
+    const bucketDeploymentRole = new aws_iam.Role(
+      this,
+      "BucketDeploymentRole",
+      {
+        assumedBy: new aws_iam.ServicePrincipal("lambda.amazonaws.com"),
+      }
+    );
+
+    bucketDeploymentRole.addToPolicy(
+      new aws_iam.PolicyStatement({
+        actions: [
+          "cloudfront:GetInvalidation",
+          "cloudfront:CreateInvalidation",
+        ],
+        resources: ["*"],
+      })
+    );
+
     new aws_s3_deployment.BucketDeployment(this, "FrontendDeployment", {
       sources: [aws_s3_deployment.Source.asset(pathToFrontend)],
       destinationBucket: hostingBucket,
       distributionPaths: ["/*"],
+      role: bucketDeploymentRole,
       distribution,
     });
 
