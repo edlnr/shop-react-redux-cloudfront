@@ -23,7 +23,7 @@
     "cloudfront:update:build:deploy": "npm run cloudfront:setup && npm run cloudfront:build:deploy",
     "cloudfront:update:build:deploy:nc": "npm run cloudfront:setup && npm run cloudfront:build:deploy:nc",
     "serverless:remove": "sls remove",
-    "deploy": "npm run build && cd infra && cdk synth && cdk deploy",
+    "deploy": "npm run build && cd infra && cdk synth && cdk deploy --all",
     "deploy:s3": "aws s3 sync ./infra/resources/build s3://$npm_config_bucket --delete",
     "invalidate:cloudfront": "aws cloudfront create-invalidation --distribution-id $npm_config_distid --paths '/*'",
     "build:deploy:invalidate": "npm run build && npm run deploy:s3 && npm run invalidate:cloudfront",

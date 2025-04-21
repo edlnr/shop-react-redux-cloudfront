@@ -72,5 +72,5 @@ Remove an entire stack configured in `serverless.yml` via CloudFormation.
 
 ## Deployment Links
 
-- **CloudFront URL**: https://dngi1uvyx3zz6.cloudfront.net/
-- **S3 Bucket URL**: https://deploywebappstack-deploymentservicefrontendbucketd-ij6kqunr9eee.s3.us-east-1.amazonaws.com/ (not accessible only through CloudFront as expected)
+- **CloudFront URL**: https://dxsjv5em0c0kx.cloudfront.net/
+- **S3 Bucket URL**: https://deploywebappstack-deploymentservicefrontendbucketd-72yaqvlhrkto.s3.us-east-1.amazonaws.com/ (not accessible only through CloudFront as expected)
