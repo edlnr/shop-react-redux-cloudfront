@@ -3,6 +3,8 @@ import { formatResponse } from "../../libs/api-gateway";
 import { productService } from "../../services/productService";
 
 export const handler: APIGatewayProxyHandler = async (event) => {
+  console.log("Event:", JSON.stringify(event));
+
   try {
     const { productId } = event.pathParameters || {};
 
@@ -18,6 +20,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     return formatResponse(200, product);
   } catch (error) {
+    console.error("Error getting product by ID:", error);
     return formatResponse(500, { message: "Internal server error" });
   }
 };
