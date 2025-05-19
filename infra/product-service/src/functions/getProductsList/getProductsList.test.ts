@@ -1,5 +1,5 @@
 import { handler } from "./getProductsList";
-import { APIGatewayResponse } from "../../libs/api-gateway";
+import { APIGatewayResponse } from "../../utils/api-gateway";
 import { mockProducts } from "../../mocks/products";
 import { productService } from "../../services/productService";
 

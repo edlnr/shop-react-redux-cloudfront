@@ -1,5 +1,5 @@
 import { APIGatewayProxyHandler } from "aws-lambda";
-import { formatResponse } from "../../libs/api-gateway";
+import { formatResponse } from "../../utils/api-gateway";
 import { productService } from "../../services/productService";
 import { validateProductDto } from "../../models/product";
 

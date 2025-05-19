@@ -1,5 +1,5 @@
 import { handler } from "./createProduct";
-import { APIGatewayResponse } from "../../libs/api-gateway";
+import { APIGatewayResponse } from "../../utils/api-gateway";
 import { productService } from "../../services/productService";
 import * as productDtoModule from "../../models/product";
 
