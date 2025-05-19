@@ -5,6 +5,7 @@ import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as path from "path";
 import * as nodeJsLambda from "aws-cdk-lib/aws-lambda-nodejs";
 import { Construct } from "constructs";
+import { CLOUDFRONT_URL } from "../constants/constants";
 
 export class ProductServiceStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -35,6 +36,7 @@ export class ProductServiceStack extends cdk.Stack {
         environment: {
           PRODUCTS_TABLE_NAME: productsTable.tableName,
           STOCK_TABLE_NAME: stockTable.tableName,
+          CLOUDFRONT_URL: CLOUDFRONT_URL,
         },
       }
     );
@@ -52,6 +54,7 @@ export class ProductServiceStack extends cdk.Stack {
         environment: {
           PRODUCTS_TABLE_NAME: productsTable.tableName,
           STOCK_TABLE_NAME: stockTable.tableName,
+          CLOUDFRONT_URL: CLOUDFRONT_URL,
         },
       }
     );
@@ -69,6 +72,7 @@ export class ProductServiceStack extends cdk.Stack {
         environment: {
           PRODUCTS_TABLE_NAME: productsTable.tableName,
           STOCK_TABLE_NAME: stockTable.tableName,
+          CLOUDFRONT_URL: CLOUDFRONT_URL,
         },
       }
     );
@@ -83,8 +87,9 @@ export class ProductServiceStack extends cdk.Stack {
     const api = new apigateway.RestApi(this, "ProductsApi", {
       restApiName: "Product Service",
       defaultCorsPreflightOptions: {
-        allowOrigins: apigateway.Cors.ALL_ORIGINS,
-        allowMethods: apigateway.Cors.ALL_METHODS,
+        allowOrigins: [CLOUDFRONT_URL],
+        allowMethods: ["GET", "POST", "OPTIONS"],
+        allowHeaders: apigateway.Cors.DEFAULT_HEADERS,
       },
     });
 
