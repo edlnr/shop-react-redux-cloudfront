@@ -79,6 +79,49 @@ export class ImportServiceStack extends cdk.Stack {
       },
     });
 
+    api.addGatewayResponse("UNAUTHORIZED_RESPONSE", {
+      type: apiGateway.ResponseType.UNAUTHORIZED,
+      statusCode: "401",
+      templates: {
+        "application/json":
+          '{"message": "Unauthorized - Authentication required"}',
+      },
+      responseHeaders: {
+        "WWW-Authenticate": "'Basic'",
+        "Access-Control-Allow-Origin": `'${CLOUDFRONT_URL}'`,
+        "Access-Control-Allow-Headers":
+          "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'",
+      },
+    });
+
+    api.addGatewayResponse("MISSING_AUTHENTICATION_TOKEN_RESPONSE", {
+      type: apiGateway.ResponseType.MISSING_AUTHENTICATION_TOKEN,
+      statusCode: "401",
+      templates: {
+        "application/json":
+          '{"message": "Unauthorized - Missing authentication token"}',
+      },
+      responseHeaders: {
+        "WWW-Authenticate": "'Basic'",
+        "Access-Control-Allow-Origin": `'${CLOUDFRONT_URL}'`,
+        "Access-Control-Allow-Headers":
+          "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'",
+      },
+    });
+
+    api.addGatewayResponse("ACCESS_DENIED_RESPONSE", {
+      type: apiGateway.ResponseType.ACCESS_DENIED,
+      statusCode: "403",
+      templates: {
+        "application/json": '{"message": "Forbidden - Invalid credentials"}',
+      },
+      responseHeaders: {
+        "Access-Control-Allow-Origin": `'${CLOUDFRONT_URL}'`,
+        "Access-Control-Allow-Headers":
+          "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'",
+      },
+    });
+
     const importResource = api.root.addResource("import");
 
     const authorizerFunction = lambda.Function.fromFunctionAttributes(
