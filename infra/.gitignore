@@ -9,3 +9,6 @@ cdk.out
 
 # Build
 resources/build/
+
+# Dotenv
+.env
