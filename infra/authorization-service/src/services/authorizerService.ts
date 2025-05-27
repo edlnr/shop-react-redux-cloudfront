@@ -10,12 +10,12 @@ export class AuthorizerService {
   async authorize(
     event: APIGatewayTokenAuthorizerEvent
   ): Promise<APIGatewayAuthorizerResult> {
-    if (event.authorizationToken === "Basic null") {
-      console.log("No authorization token provided");
-      return this.generatePolicy("undefined", "Deny", event.methodArn, 401);
-    }
-
     try {
+      if (!event.authorizationToken) {
+        console.log("No authorization token provided");
+        return this.generatePolicy("undefined", "Deny", event.methodArn, 401);
+      }
+
       const token = event.authorizationToken.replace("Basic ", "");
       console.log("Token: ", token);
 
@@ -68,7 +68,7 @@ export class AuthorizerService {
           },
         ],
       },
-      context: statusCode ? { statusCode } : undefined,
+      context: statusCode ? { statusCode: statusCode } : undefined,
     };
 
     return authResponse;
