@@ -14,15 +14,20 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
+import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
+import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { v4 as uuidv4 } from "uuid";
 import { Readable } from "stream";
 import { Product } from "../models/product";
+import { processProductData } from "../utils/processProductData";
 
 const REGION = "us-east-1";
 
 const client = new DynamoDBClient({ region: REGION });
 const s3Client = new S3Client({ region: REGION });
+const sqsClient = new SQSClient({ region: REGION });
+const snsClient = new SNSClient({ region: REGION });
 const docClient = DynamoDBDocumentClient.from(client);
 
 const PRODUCTS_TABLE_NAME = process.env.PRODUCTS_TABLE_NAME ?? "products";
@@ -30,6 +35,8 @@ const STOCK_TABLE_NAME = process.env.STOCK_TABLE_NAME ?? "stock";
 const IMPORT_SERVICE_BUCKET_NAME = process.env.IMPORT_SERVICE_BUCKET_NAME;
 const UPLOADED_PREFIX = process.env.UPLOADED_PREFIX ?? "uploaded/";
 const PARSED_PREFIX = process.env.PARSED_PREFIX ?? "parsed/";
+const CATALOG_ITEMS_QUEUE_URL = process.env.CATALOG_ITEMS_QUEUE_URL;
+const CREATE_PRODUCT_TOPIC_ARN = process.env.CREATE_PRODUCT_TOPIC_ARN;
 
 export class ProductService {
   async getAllProducts(): Promise<Product[]> {
@@ -188,13 +195,46 @@ export class ProductService {
         const stream = s3Object.Body as Readable;
 
         await new Promise<void>((resolve, reject) => {
+          const sqsPromises: Promise<any>[] = [];
+          const records: any[] = [];
+
           stream
             .pipe(csv())
             .on("data", (data) => {
-              console.log("Parsed CSV Record:", data);
+              records.push(data);
             })
             .on("end", async () => {
               console.log(`CSV parsing finished for ${objectKey}`);
+
+              if (!CATALOG_ITEMS_QUEUE_URL) {
+                console.error("CATALOG_ITEMS_QUEUE_URL is not defined");
+                reject(new Error("CATALOG_ITEMS_QUEUE_URL is not defined"));
+                return;
+              }
+
+              try {
+                for (const data of records) {
+                  console.log("Sending product data to SQS:", data);
+                  const sendMessageCommand = new SendMessageCommand({
+                    QueueUrl: CATALOG_ITEMS_QUEUE_URL,
+                    MessageBody: JSON.stringify(data),
+                  });
+
+                  sqsPromises.push(sqsClient.send(sendMessageCommand));
+                }
+
+                await Promise.all(sqsPromises);
+                console.log(
+                  `Successfully sent ${records.length} messages to SQS`
+                );
+              } catch (error) {
+                console.error(
+                  `Error sending messages to SQS for ${objectKey}:`,
+                  error
+                );
+                reject(error);
+                return;
+              }
 
               const parsedKey = objectKey.replace(
                 UPLOADED_PREFIX,
@@ -232,6 +272,62 @@ export class ProductService {
       } catch (error) {
         console.error(`Error processing file ${objectKey}:`, error);
       }
+    }
+  }
+
+  async processProductFromSQS(messageBody: string): Promise<Product | null> {
+    try {
+      const { productData } = processProductData(messageBody);
+
+      if (!productData) {
+        console.error("Invalid product data:", messageBody);
+        return null;
+      }
+
+      console.log("Processing product:", productData);
+
+      const createdProduct = await this.createProduct(productData);
+      console.log("Product created successfully:", createdProduct);
+
+      if (CREATE_PRODUCT_TOPIC_ARN) {
+        try {
+          const message = {
+            productId: createdProduct.id,
+            title: createdProduct.title,
+            description: createdProduct.description,
+            price: createdProduct.price,
+            count: createdProduct.count,
+          };
+
+          const command = new PublishCommand({
+            TopicArn: CREATE_PRODUCT_TOPIC_ARN,
+            Subject: `New product created: ${createdProduct.title}`,
+            Message: JSON.stringify(message),
+            MessageAttributes: {
+              productId: {
+                DataType: "String",
+                StringValue: createdProduct.id,
+              },
+              price: {
+                DataType: "Number",
+                StringValue: createdProduct.price.toString(),
+              },
+            },
+          });
+
+          await snsClient.send(command);
+          console.log(
+            `Notification sent to SNS topic: ${CREATE_PRODUCT_TOPIC_ARN}`
+          );
+        } catch (snsError) {
+          console.error("Error sending SNS notification:", snsError);
+        }
+      }
+
+      return createdProduct;
+    } catch (error) {
+      console.error("Error processing product:", error);
+      return null;
     }
   }
 }
