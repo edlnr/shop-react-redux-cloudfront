@@ -1,6 +1,5 @@
 import { SQSEvent, SQSHandler } from "aws-lambda";
 import { productService } from "../../services/productService";
-import { validateProductDto } from "../../models/product";
 
 export const handler: SQSHandler = async (event: SQSEvent) => {
   console.log("Event:", JSON.stringify(event));
@@ -14,19 +13,6 @@ export const handler: SQSHandler = async (event: SQSEvent) => {
 
   for (const record of event.Records) {
     try {
-      const productData = JSON.parse(record.body);
-
-      const validation = validateProductDto(productData);
-      if (!validation.isValid) {
-        console.error(
-          "Invalid product data:",
-          productData,
-          "Errors:",
-          validation.errors
-        );
-        continue;
-      }
-
       await productService.processProductFromSQS(record.body);
     } catch (error) {
       console.error("Error processing message:", record.body, "Error:", error);

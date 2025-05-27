@@ -20,6 +20,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { v4 as uuidv4 } from "uuid";
 import { Readable } from "stream";
 import { Product } from "../models/product";
+import { processProductData } from "../utils/processProductData";
 
 const REGION = "us-east-1";
 
@@ -260,7 +261,13 @@ export class ProductService {
 
   async processProductFromSQS(messageBody: string): Promise<Product | null> {
     try {
-      const productData = JSON.parse(messageBody);
+      const { productData } = processProductData(messageBody);
+
+      if (!productData) {
+        console.error("Invalid product data:", messageBody);
+        return null;
+      }
+
       console.log("Processing product:", productData);
 
       const createdProduct = await this.createProduct(productData);
