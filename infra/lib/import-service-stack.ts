@@ -4,6 +4,7 @@ import * as s3n from "aws-cdk-lib/aws-s3-notifications";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as nodeJsLambda from "aws-cdk-lib/aws-lambda-nodejs";
 import * as apiGateway from "aws-cdk-lib/aws-apigateway";
+import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as path from "path";
 import { Construct } from "constructs";
 import { CLOUDFRONT_URL } from "../constants/constants";
@@ -11,8 +12,12 @@ import { CLOUDFRONT_URL } from "../constants/constants";
 const UPLOADED_PREFIX = "uploaded/";
 const PARSED_PREFIX = "parsed/";
 
+export interface ImportServiceStackProps extends cdk.StackProps {
+  catalogItemsQueue: sqs.Queue;
+}
+
 export class ImportServiceStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props: ImportServiceStackProps) {
     super(scope, id, props);
 
     const importServiceBucket = new s3.Bucket(this, "ImportServiceBucket", {
@@ -100,6 +105,7 @@ export class ImportServiceStack extends cdk.Stack {
           UPLOADED_PREFIX: UPLOADED_PREFIX,
           PARSED_PREFIX: PARSED_PREFIX,
           CLOUDFRONT_URL: CLOUDFRONT_URL,
+          CATALOG_ITEMS_QUEUE_URL: props.catalogItemsQueue.queueUrl,
         },
         timeout: cdk.Duration.seconds(60),
       }
@@ -120,5 +126,7 @@ export class ImportServiceStack extends cdk.Stack {
       new s3n.LambdaDestination(importFileParserLambda),
       { prefix: UPLOADED_PREFIX }
     );
+
+    props.catalogItemsQueue.grantSendMessages(importFileParserLambda);
   }
 }

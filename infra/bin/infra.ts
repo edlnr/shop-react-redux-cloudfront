@@ -5,6 +5,8 @@ import { DeployWebAppStack } from "../lib/deploy-web-app-stack";
 
 const app = new cdk.App();
 
-new ImportServiceStack(app, "ImportServiceStack", {});
-new ProductServiceStack(app, "ProductServiceStack", {});
+const productServiceStack = new ProductServiceStack(app, "ProductServiceStack", {});
+new ImportServiceStack(app, "ImportServiceStack", {
+  catalogItemsQueue: productServiceStack.catalogItemsQueue
+});
 new DeployWebAppStack(app, "DeployWebAppStack", {});

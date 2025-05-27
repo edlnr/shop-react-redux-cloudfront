@@ -14,6 +14,8 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
+import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
+import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { v4 as uuidv4 } from "uuid";
 import { Readable } from "stream";
@@ -23,6 +25,8 @@ const REGION = "us-east-1";
 
 const client = new DynamoDBClient({ region: REGION });
 const s3Client = new S3Client({ region: REGION });
+const sqsClient = new SQSClient({ region: REGION });
+const snsClient = new SNSClient({ region: REGION });
 const docClient = DynamoDBDocumentClient.from(client);
 
 const PRODUCTS_TABLE_NAME = process.env.PRODUCTS_TABLE_NAME ?? "products";
@@ -30,6 +34,8 @@ const STOCK_TABLE_NAME = process.env.STOCK_TABLE_NAME ?? "stock";
 const IMPORT_SERVICE_BUCKET_NAME = process.env.IMPORT_SERVICE_BUCKET_NAME;
 const UPLOADED_PREFIX = process.env.UPLOADED_PREFIX ?? "uploaded/";
 const PARSED_PREFIX = process.env.PARSED_PREFIX ?? "parsed/";
+const CATALOG_ITEMS_QUEUE_URL = process.env.CATALOG_ITEMS_QUEUE_URL;
+const CREATE_PRODUCT_TOPIC_ARN = process.env.CREATE_PRODUCT_TOPIC_ARN;
 
 export class ProductService {
   async getAllProducts(): Promise<Product[]> {
@@ -190,8 +196,25 @@ export class ProductService {
         await new Promise<void>((resolve, reject) => {
           stream
             .pipe(csv())
-            .on("data", (data) => {
-              console.log("Parsed CSV Record:", data);
+            .on("data", async (data) => {
+              try {
+                if (!CATALOG_ITEMS_QUEUE_URL) {
+                  console.error("CATALOG_ITEMS_QUEUE_URL is not defined");
+                  return;
+                }
+
+                console.log("Sending product data to SQS:", data);
+
+                const sendMessageCommand = new SendMessageCommand({
+                  QueueUrl: CATALOG_ITEMS_QUEUE_URL,
+                  MessageBody: JSON.stringify(data),
+                });
+
+                await sqsClient.send(sendMessageCommand);
+                console.log("Successfully sent message to SQS");
+              } catch (error) {
+                console.error("Error sending message to SQS:", error);
+              }
             })
             .on("end", async () => {
               console.log(`CSV parsing finished for ${objectKey}`);
@@ -232,6 +255,56 @@ export class ProductService {
       } catch (error) {
         console.error(`Error processing file ${objectKey}:`, error);
       }
+    }
+  }
+
+  async processProductFromSQS(messageBody: string): Promise<Product | null> {
+    try {
+      const productData = JSON.parse(messageBody);
+      console.log("Processing product:", productData);
+
+      const createdProduct = await this.createProduct(productData);
+      console.log("Product created successfully:", createdProduct);
+
+      if (CREATE_PRODUCT_TOPIC_ARN) {
+        try {
+          const message = {
+            productId: createdProduct.id,
+            title: createdProduct.title,
+            description: createdProduct.description,
+            price: createdProduct.price,
+            count: createdProduct.count,
+          };
+
+          const command = new PublishCommand({
+            TopicArn: CREATE_PRODUCT_TOPIC_ARN,
+            Subject: `New product created: ${createdProduct.title}`,
+            Message: JSON.stringify(message),
+            MessageAttributes: {
+              productId: {
+                DataType: "String",
+                StringValue: createdProduct.id,
+              },
+              price: {
+                DataType: "Number",
+                StringValue: createdProduct.price.toString(),
+              },
+            },
+          });
+
+          await snsClient.send(command);
+          console.log(
+            `Notification sent to SNS topic: ${CREATE_PRODUCT_TOPIC_ARN}`
+          );
+        } catch (snsError) {
+          console.error("Error sending SNS notification:", snsError);
+        }
+      }
+
+      return createdProduct;
+    } catch (error) {
+      console.error("Error processing product:", error);
+      return null;
     }
   }
 }
