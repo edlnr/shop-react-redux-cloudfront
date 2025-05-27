@@ -1,4 +1,5 @@
 import * as cdk from "aws-cdk-lib";
+import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
 import * as lambda from "aws-cdk-lib/aws-lambda";
@@ -14,6 +15,7 @@ const PARSED_PREFIX = "parsed/";
 
 export interface ImportServiceStackProps extends cdk.StackProps {
   catalogItemsQueue: sqs.Queue;
+  basicAuthorizerLambdaArn: string;
 }
 
 export class ImportServiceStack extends cdk.Stack {
@@ -48,7 +50,7 @@ export class ImportServiceStack extends cdk.Stack {
       this,
       "ImportProductsFileLambda",
       {
-        runtime: lambda.Runtime.NODEJS_18_X,
+        runtime: lambda.Runtime.NODEJS_20_X,
         entry: path.join(
           __dirname,
           "../product-service/src/functions/importProductsFile/importProductsFile.ts"
@@ -73,15 +75,42 @@ export class ImportServiceStack extends cdk.Stack {
       defaultCorsPreflightOptions: {
         allowOrigins: [CLOUDFRONT_URL],
         allowMethods: ["GET", "OPTIONS"],
-        allowHeaders: apiGateway.Cors.DEFAULT_HEADERS,
+        allowHeaders: [...apiGateway.Cors.DEFAULT_HEADERS, "Authorization"],
       },
     });
 
     const importResource = api.root.addResource("import");
+
+    const authorizerFunction = lambda.Function.fromFunctionAttributes(
+      this,
+      "BasicAuthorizerFunction",
+      {
+        functionArn: props.basicAuthorizerLambdaArn,
+        sameEnvironment: true,
+      }
+    );
+
+    authorizerFunction.addPermission("ApiGatewayInvokePermission", {
+      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+      sourceArn: api.arnForExecuteApi(),
+    });
+
+    const authorizer = new apiGateway.TokenAuthorizer(
+      this,
+      "ImportAuthorizer",
+      {
+        handler: authorizerFunction,
+        identitySource: "method.request.header.Authorization",
+      }
+    );
+
     importResource.addMethod(
       "GET",
       new apiGateway.LambdaIntegration(importProductsFileLambda),
-      {}
+      {
+        authorizer,
+        authorizationType: apiGateway.AuthorizationType.CUSTOM,
+      }
     );
 
     new cdk.CfnOutput(this, "ImportServiceApiUrl", {
@@ -94,7 +123,7 @@ export class ImportServiceStack extends cdk.Stack {
       this,
       "ImportFileParserLambda",
       {
-        runtime: lambda.Runtime.NODEJS_18_X,
+        runtime: lambda.Runtime.NODEJS_20_X,
         entry: path.join(
           __dirname,
           "../product-service/src/functions/importFileParser/importFileParser.ts"

@@ -1,6 +1,7 @@
 import API_PATHS from "~/constants/apiPaths";
 import ProductsTable from "~/components/pages/admin/PageProductImport/components/ProductsTable";
 import CSVFileImport from "~/components/pages/admin/PageProductImport/components/CSVFileImport";
+import AuthorizationManager from "~/components/pages/admin/PageProductImport/components/AuthorizationManager";
 import Button from "@mui/material/Button";
 import Box from "@mui/material/Box";
 import { Link } from "react-router-dom";
@@ -8,6 +9,7 @@ import { Link } from "react-router-dom";
 export default function PageProductImport() {
   return (
     <Box py={3}>
+      <AuthorizationManager />
       <Box mb={2} display="flex" justifyContent="space-between">
         <CSVFileImport
           url={`${API_PATHS.import}/import`}

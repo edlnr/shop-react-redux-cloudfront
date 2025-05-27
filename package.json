@@ -27,7 +27,7 @@
     "deploy:s3": "aws s3 sync ./infra/resources/build s3://$npm_config_bucket --delete",
     "invalidate:cloudfront": "aws cloudfront create-invalidation --distribution-id $npm_config_distid --paths '/*'",
     "build:deploy:invalidate": "npm run build && npm run deploy:s3 && npm run invalidate:cloudfront",
-    "destroy": "cd infra && cdk destroy"
+    "destroy": "cd infra && cdk destroy --all"
   },
   "dependencies": {
     "@emotion/react": "^11.9.3",
