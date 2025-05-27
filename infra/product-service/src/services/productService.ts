@@ -195,30 +195,46 @@ export class ProductService {
         const stream = s3Object.Body as Readable;
 
         await new Promise<void>((resolve, reject) => {
+          const sqsPromises: Promise<any>[] = [];
+          const records: any[] = [];
+
           stream
             .pipe(csv())
-            .on("data", async (data) => {
-              try {
-                if (!CATALOG_ITEMS_QUEUE_URL) {
-                  console.error("CATALOG_ITEMS_QUEUE_URL is not defined");
-                  return;
-                }
-
-                console.log("Sending product data to SQS:", data);
-
-                const sendMessageCommand = new SendMessageCommand({
-                  QueueUrl: CATALOG_ITEMS_QUEUE_URL,
-                  MessageBody: JSON.stringify(data),
-                });
-
-                await sqsClient.send(sendMessageCommand);
-                console.log("Successfully sent message to SQS");
-              } catch (error) {
-                console.error("Error sending message to SQS:", error);
-              }
+            .on("data", (data) => {
+              records.push(data);
             })
             .on("end", async () => {
               console.log(`CSV parsing finished for ${objectKey}`);
+
+              if (!CATALOG_ITEMS_QUEUE_URL) {
+                console.error("CATALOG_ITEMS_QUEUE_URL is not defined");
+                reject(new Error("CATALOG_ITEMS_QUEUE_URL is not defined"));
+                return;
+              }
+
+              try {
+                for (const data of records) {
+                  console.log("Sending product data to SQS:", data);
+                  const sendMessageCommand = new SendMessageCommand({
+                    QueueUrl: CATALOG_ITEMS_QUEUE_URL,
+                    MessageBody: JSON.stringify(data),
+                  });
+
+                  sqsPromises.push(sqsClient.send(sendMessageCommand));
+                }
+
+                await Promise.all(sqsPromises);
+                console.log(
+                  `Successfully sent ${records.length} messages to SQS`
+                );
+              } catch (error) {
+                console.error(
+                  `Error sending messages to SQS for ${objectKey}:`,
+                  error
+                );
+                reject(error);
+                return;
+              }
 
               const parsedKey = objectKey.replace(
                 UPLOADED_PREFIX,
